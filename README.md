@@ -1,23 +1,61 @@
-# Microservices with API Gateway Orchestration
+# Microservices Behind an API Gateway (Assignment Implementation)
 
-This project demonstrates a minimal microservices architecture orchestrated via a Kong API Gateway and a custom Kong plugin (`chain-plugin`) that performs simple service chaining and logging.
+Implements a 3‑microservice architecture (Policy, Retriever, Processor) fronted by **Kong API Gateway** with a **custom orchestration plugin** that performs request governance, chaining, idempotency, authentication, rate limiting, and structured JSON logging.
+
+Submission Date Target: 17.10.2025
+
+## High-Level Flow
+
+Client -> (API Key + rate limit enforced) -> `POST /process-request` (Gateway Route)
+1. Gateway plugin extracts: `request_id`, `query` and assigns/propagates `trace_id`.
+2. Calls Policy Service (`POST /policy`) – denies if `query` contains the word `forbidden`.
+3. Calls Retriever Service (`POST /retrieve`) – returns top 3 lexical matches from a small in‑container dataset.
+4. Calls Processor Service (`POST /process`) – summarizes retrieved docs and assigns a label.
+5. Combines results and returns `{ request_id, trace_id, summary, label, documents }`.
+6. Duplicate `request_id` within TTL returns cached response (idempotent behavior).
+
+All steps are logged to `logs/audit.jsonl` with: `timestamp, phase, request_id, trace_id, status/http_status` and step markers.
 
 ## Components
 
-- **Kong Gateway**: Fronts all services, provides routing and runs a custom plugin.
-- **policy service** (`/policy`): Returns a sample policy decision.
-- **retriever service** (`/retriever`): Returns sample retrieved data.
-- **processor service** (`/process`): Aggregates results from the policy and retriever services directly, while the gateway plugin can also pre-fetch them and attach results via a response header.
-- **chain-plugin**: Custom Lua plugin that, for configured routes, sequentially calls downstream services and logs the responses to `logs/audit.jsonl`.
+| Component | Purpose |
+|-----------|---------|
+| Kong Gateway | Routing, key-auth, rate limiting (5 req/min), custom orchestration plugin |
+| chain-plugin | Lua plugin orchestrating policy -> retriever -> processor, idempotency cache, logging |
+| Policy Service | Validates query; denies if contains `forbidden` (case-insensitive) |
+| Retriever Service | Scores dataset docs vs query; returns top 3 matches |
+| Processor Service | Summarizes documents and assigns heuristic label |
+| audit.jsonl | Persistent JSON lines log (mounted volume) |
 
-## Flow
+## Security & Governance
 
-1. Client calls `KONG /process` endpoint (e.g. `http://localhost:8000/process`).
-2. Kong matches the `processor` service route.
-3. `chain-plugin` runs in the access phase, calling `/policy` and `/retriever` on their respective upstream containers.
-4. Results are stored in `kong.ctx.shared` and a JSON line is appended to `logs/audit.jsonl` inside the gateway container (mounted locally).
-5. Upstream `processor` service also performs its own calls (illustrating both gateway-side and service-side composition) and responds.
-6. Plugin adds an `X-Chain-Results` header with the aggregated chain call results.
+Authentication: Kong `key-auth` (API key via `X-API-Key` header).
+Rate Limiting: 5 requests per minute (local policy) on the orchestration route.
+Idempotency: Cache keyed by `request_id` with configurable TTL (`idempotency_ttl`, default 300s) inside plugin worker.
+
+## Endpoints (Internal Microservices)
+
+| Service | Endpoint | Method | Body |
+|---------|----------|--------|------|
+| Policy | `/policy` | POST | `{ request_id, query }` |
+| Retriever | `/retrieve` | POST | `{ request_id, query }` |
+| Processor | `/process` | POST | `{ request_id, query, documents:[...] }` |
+
+## Gateway Public Endpoint
+
+`POST http://localhost:8000/process-request`
+
+Body:
+```json
+{ "request_id": "12345", "query": "microservices policy gateway" }
+```
+
+Headers required:
+```
+X-API-Key: DEMO-API-KEY-123
+```
+
+Optional tracing headers accepted: `X-Trace-Id`, `X-Request-Id` (otherwise generated/derived).
 
 ## Directory Structure
 
@@ -33,7 +71,8 @@ This project demonstrates a minimal microservices architecture orchestrated via 
 │   └── app.py
 ├── retriever/
 │   ├── Dockerfile
-│   └── app.py
+│   ├── app.py
+│   └── dataset.json
 ├── processor/
 │   ├── Dockerfile
 │   └── app.py
@@ -42,59 +81,75 @@ This project demonstrates a minimal microservices architecture orchestrated via 
 └── README.md
 ```
 
-## Prerequisites
-
-- Docker + Docker Compose
-
-## Run
-
-Build and start everything:
+## Run Locally
 
 ```powershell
 docker compose up --build
 ```
 
-Wait until Kong reports it is running ("Kong started").
+Wait for: `Kong started`.
 
-## Test Endpoints
+## Sample Requests (PowerShell)
 
+Successful request:
 ```powershell
-# Processor (goes through gateway + plugin)
-Invoke-RestMethod http://localhost:8000/process | ConvertTo-Json -Depth 5
-
-# Direct service bypassing gateway (for comparison)
-Invoke-RestMethod http://localhost:9003/process | ConvertTo-Json -Depth 5
-
-# Inspect chain header
-(Invoke-WebRequest http://localhost:8000/process).Headers['X-Chain-Results']
+$body = @{ request_id = "req-001"; query = "microservices gateway policy" } | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+  -Uri http://localhost:8000/process-request `
+  -Headers @{ 'X-API-Key'='DEMO-API-KEY-123' } `
+  -Body $body `
+  -ContentType 'application/json' | ConvertTo-Json -Depth 6
 ```
 
-Check the audit log after some requests:
-
+Idempotent repeat (same request_id returns identical result immediately):
 ```powershell
-Get-Content .\logs\audit.jsonl
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/process-request `
+  -Headers @{ 'X-API-Key'='DEMO-API-KEY-123' } `
+  -Body $body -ContentType 'application/json' | ConvertTo-Json -Depth 6
 ```
 
-## Custom Plugin Notes
-
-- Configured in `kong.yml` under the `processor` service route.
-- Fields:
-  - `chain`: Ordered list of upstream service names to call.
-  - `log_path`: File path for JSONL audit log inside container (`/var/log/microservices/audit.jsonl`).
-- The plugin adds header `X-Chain-Results` containing a JSON array of the chained calls (status + body).
-
-## Modifying the Chain
-
-Edit `kong.yml` and adjust the `chain` array, then restart Kong:
-
+Policy denial example:
 ```powershell
-docker compose restart kong
+$denyBody = @{ request_id = "req-002"; query = "this contains forbidden term" } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/process-request `
+  -Headers @{ 'X-API-Key'='DEMO-API-KEY-123' } `
+  -Body $denyBody -ContentType 'application/json' | ConvertTo-Json -Depth 6
 ```
 
-## Development Tips
+Rate limiting (after 5 quick calls within a minute expect HTTP 429):
+```powershell
+1..6 | ForEach-Object {
+  Invoke-WebRequest -Method Post -Uri http://localhost:8000/process-request `
+    -Headers @{ 'X-API-Key'='DEMO-API-KEY-123' } `
+    -Body $body -ContentType 'application/json' | Select-Object StatusCode
+}
+```
 
-- Add Python deps in `requirements.txt` (shared across the three services for simplicity).
-- For iterative gateway plugin development you can restart only the Kong container.
+## Log Inspection
+
+```powershell
+Get-Content .\logs\audit.jsonl | Select-String success
+```
+
+Each line: `{ "timestamp": <float>, "phase": "success|error|deny|cache_hit", "request_id": "...", "trace_id": "...", "status": "ok|idempotent-return", "http_status": <code> }` plus step-specific fields.
+
+## Configuration Highlights (`kong.yml`)
+
+- Route: `/process-request` (methods: POST)
+- Plugins:
+  - `key-auth` (expects `X-API-Key`)
+  - `rate-limiting` (`minute: 5`)
+  - `chain-plugin` (custom) fields:
+    - `policy_service`, `retriever_service`, `processor_service`
+    - `log_path`
+    - `idempotency_ttl`
+
+## Extending / Next Steps
+
+- Persist idempotency cache using Redis (via Lua resty client) for multi-worker resilience.
+- Add OpenAPI/Swagger docs per service.
+- Add unit tests (pytest) and contract tests hitting the gateway.
+- Enhance summarization with an actual ML/NLP model (e.g., transformers) if required (would require updated dependencies).
 
 ## Cleanup
 
@@ -104,4 +159,4 @@ docker compose down -v
 
 ## License
 
-MIT (sample project)
+MIT (educational demonstration)
