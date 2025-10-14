@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  kong:
+    image: kong:3.6
+    container_name: kong
+    depends_on:
+      - policy
+      - retriever
+      - processor
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_PLUGINS: bundled,chain-plugin
+      KONG_LOG_LEVEL: info
+    volumes:
+      - ./kong.yml:/kong/kong.yml:ro
+      - ./kong.conf:/etc/kong/kong.conf:ro
+      - ./chain-plugin:/usr/local/share/lua/5.1/kong/plugins/chain-plugin:ro
+      - ./logs:/var/log/microservices
+    ports:
+      - "8000:8000"   # proxy
+      - "8001:8001"   # admin api (if enabled)
+    command: ["kong", "start", "-c", "/etc/kong/kong.conf"]
+
+  policy:
+    build: ./policy
+    image: micro/policy:latest
+    environment:
+      SERVICE_NAME: policy
+    ports:
+      - "9001:9000"
+
+  retriever:
+    build: ./retriever
+    image: micro/retriever:latest
+    environment:
+      SERVICE_NAME: retriever
+    ports:
+      - "9002:9000"
+
+  processor:
+    build: ./processor
+    image: micro/processor:latest
+    environment:
+      SERVICE_NAME: processor
+    ports:
+      - "9003:9000"
+    depends_on:
+      - policy
+      - retriever
+
+networks:
+  default:
+    name: micro_net

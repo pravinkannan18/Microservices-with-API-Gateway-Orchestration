@@ -1,0 +1,29 @@
+_format_version: "3.0"
+_transform: true
+services:
+  - name: processor
+    url: http://processor:9000
+    routes:
+      - name: processor-route
+        paths:
+          - /process
+        strip_path: false
+        plugins:
+          - name: chain-plugin
+            config:
+              chain: ["policy", "retriever"]
+              log_path: "/var/log/microservices/audit.jsonl"
+  - name: policy
+    url: http://policy:9000
+    routes:
+      - name: policy-route
+        paths:
+          - /policy
+        strip_path: false
+  - name: retriever
+    url: http://retriever:9000
+    routes:
+      - name: retriever-route
+        paths:
+          - /retrieve
+        strip_path: false
