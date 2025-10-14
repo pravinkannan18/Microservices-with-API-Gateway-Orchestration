@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   kong:
     image: kong:3.6
