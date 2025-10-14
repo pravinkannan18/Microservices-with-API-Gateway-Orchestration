@@ -22,7 +22,9 @@ services:
     command: ["kong", "start", "-c", "/etc/kong/kong.conf"]
 
   policy:
-    build: ./policy
+    build:
+      context: .
+      dockerfile: policy/Dockerfile
     image: micro/policy:latest
     environment:
       SERVICE_NAME: policy
@@ -30,7 +32,9 @@ services:
       - "9001:9000"
 
   retriever:
-    build: ./retriever
+    build:
+      context: .
+      dockerfile: retriever/Dockerfile
     image: micro/retriever:latest
     environment:
       SERVICE_NAME: retriever
@@ -38,7 +42,9 @@ services:
       - "9002:9000"
 
   processor:
-    build: ./processor
+    build:
+      context: .
+      dockerfile: processor/Dockerfile
     image: micro/processor:latest
     environment:
       SERVICE_NAME: processor
