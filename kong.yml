@@ -1,29 +1,35 @@
 _format_version: "3.0"
 _transform: true
+
 services:
-  - name: processor
-    url: http://processor:9000
+  - name: orchestration-dummy
+    url: http://localhost:65535 # dummy upstream, plugin will short-circuit
     routes:
-      - name: processor-route
-        paths:
-          - /process
+      - name: process-request-route
+        paths: [ "/process-request" ]
+        methods: [ "POST" ]
         strip_path: false
         plugins:
+          - name: key-auth
+          - name: rate-limiting
+            config:
+              minute: 5
+              policy: local
           - name: chain-plugin
             config:
-              chain: ["policy", "retriever"]
+              policy_service: policy
+              retriever_service: retriever
+              processor_service: processor
               log_path: "/var/log/microservices/audit.jsonl"
+              idempotency_ttl: 300
   - name: policy
     url: http://policy:9000
-    routes:
-      - name: policy-route
-        paths:
-          - /policy
-        strip_path: false
   - name: retriever
     url: http://retriever:9000
-    routes:
-      - name: retriever-route
-        paths:
-          - /retrieve
-        strip_path: false
+  - name: processor
+    url: http://processor:9000
+
+consumers:
+  - username: demo-client
+    keyauth_credentials:
+      - key: DEMO-API-KEY-123

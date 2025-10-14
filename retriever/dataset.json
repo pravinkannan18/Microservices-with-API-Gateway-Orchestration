@@ -1,0 +1,7 @@
+[
+  {"text": "FastAPI makes it easy to build HTTP APIs with Python."},
+  {"text": "Kong API Gateway provides routing, authentication, and rate limiting."},
+  {"text": "Microservices communicate over lightweight protocols such as HTTP."},
+  {"text": "Idempotent request handling ensures duplicate requests yield same result."},
+  {"text": "Policy services can deny access based on request content."}
+]

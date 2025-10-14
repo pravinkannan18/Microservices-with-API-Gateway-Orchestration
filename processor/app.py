@@ -1,19 +1,40 @@
 from fastapi import FastAPI
-import os, httpx
+from pydantic import BaseModel
+import os, re, hashlib
 
 app = FastAPI(title="Processor Service")
 
-@app.get("/process")
-async def process():
-    # This endpoint may be decorated/augmented by Kong chain plugin; still we can optionally call others directly
-    async with httpx.AsyncClient(timeout=2.0) as client:
-        policy_resp = await client.get("http://policy:9000/policy")
-        retriever_resp = await client.get("http://retriever:9000/retriever")
+class ProcessRequest(BaseModel):
+    request_id: str
+    query: str
+    documents: list
+
+def summarize(docs, max_sentences=2):
+    joined = " ".join(d.get("text", "") for d in docs)
+    sentences = re.split(r"(?<=[.!?])\s+", joined)
+    return " ".join(sentences[:max_sentences]).strip()
+
+def label(docs):
+    text = " ".join(d.get("text", "") for d in docs).lower()
+    if "policy" in text:
+        return "policy"
+    if "gateway" in text or "kong" in text:
+        return "infrastructure"
+    if "microservice" in text:
+        return "architecture"
+    return "general"
+
+@app.post("/process")
+async def process(req: ProcessRequest):
+    summary = summarize(req.documents)
+    lbl = label(req.documents)
+    digest = hashlib.sha1(summary.encode()).hexdigest()[:8]
     return {
         "service": "processor",
-        "policy": policy_resp.json(),
-        "retrieved": retriever_resp.json(),
-        "detail": "Aggregated in processor"
+        "request_id": req.request_id,
+        "summary": summary,
+        "label": lbl,
+        "digest": digest
     }
 
 @app.get("/health")
