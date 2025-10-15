@@ -1,9 +1,17 @@
+import os
+import json
+import re
+import math
+from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import os, json, re, math
-from pathlib import Path
 
 app = FastAPI(title="Retriever Service")
+
+@app.get("/")
+@app.get("/docs")
+async def welcome():
+    return {"message": "Welcome to the Retriever Service!"}
 
 DATASET_PATH = Path(__file__).parent / "dataset.json"
 if DATASET_PATH.exists():

@@ -1,8 +1,15 @@
+import os
+import re
+import hashlib
 from fastapi import FastAPI
 from pydantic import BaseModel
-import os, re, hashlib
 
 app = FastAPI(title="Processor Service")
+
+@app.get("/")
+@app.get("/docs")
+async def welcome():
+    return {"message": "Welcome to the Processor Service!"}
 
 class ProcessRequest(BaseModel):
     request_id: str
@@ -24,11 +31,22 @@ def label(docs):
         return "architecture"
     return "general"
 
+from fastapi import HTTPException
+
 @app.post("/process")
 async def process(req: ProcessRequest):
-    summary = summarize(req.documents)
-    lbl = label(req.documents)
-    digest = hashlib.sha1(summary.encode()).hexdigest()[:8]
+    # Validate input
+    if not isinstance(req.documents, list) or not req.documents:
+        raise HTTPException(status_code=400, detail="'documents' must be a non-empty list")
+    for doc in req.documents:
+        if not isinstance(doc, dict) or "text" not in doc:
+            raise HTTPException(status_code=400, detail="Each document must be a dict with a 'text' field")
+    try:
+        summary = summarize(req.documents)
+        lbl = label(req.documents)
+        digest = hashlib.sha1(summary.encode()).hexdigest()[:8]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
     return {
         "service": "processor",
         "request_id": req.request_id,
