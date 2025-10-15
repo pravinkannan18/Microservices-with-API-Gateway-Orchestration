@@ -6,11 +6,6 @@ from pydantic import BaseModel
 
 app = FastAPI(title="Processor Service")
 
-@app.get("/")
-@app.get("/docs")
-async def welcome():
-    return {"message": "Welcome to the Processor Service!"}
-
 class ProcessRequest(BaseModel):
     request_id: str
     query: str

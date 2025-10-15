@@ -3,11 +3,6 @@ from pydantic import BaseModel
 import os, re
 
 app = FastAPI(title="Policy Service")
-
-@app.get("/")
-@app.get("/docs")
-async def welcome():
-    return {"message": "Welcome to the Policy Service!"}
 class PolicyRequest(BaseModel):
     request_id: str
     query: str

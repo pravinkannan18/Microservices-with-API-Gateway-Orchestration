@@ -8,11 +8,6 @@ from pydantic import BaseModel
 
 app = FastAPI(title="Retriever Service")
 
-@app.get("/")
-@app.get("/docs")
-async def welcome():
-    return {"message": "Welcome to the Retriever Service!"}
-
 DATASET_PATH = Path(__file__).parent / "dataset.json"
 if DATASET_PATH.exists():
     with open(DATASET_PATH, "r", encoding="utf-8") as f:
