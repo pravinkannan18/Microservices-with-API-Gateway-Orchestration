@@ -1,7 +1,22 @@
 [
-  {"text": "FastAPI makes it easy to build HTTP APIs with Python."},
-  {"text": "Kong API Gateway provides routing, authentication, and rate limiting."},
-  {"text": "Microservices communicate over lightweight protocols such as HTTP."},
-  {"text": "Idempotent request handling ensures duplicate requests yield same result."},
-  {"text": "Policy services can deny access based on request content."}
+  {"text": "FastAPI is a modern, fast web framework for building APIs with Python 3.7+ based on standard Python type hints."},
+  {"text": "Kong API Gateway provides routing, authentication, rate limiting, and load balancing for microservices architectures."},
+  {"text": "Microservices communicate over lightweight protocols such as HTTP, gRPC, and message queues for asynchronous processing."},
+  {"text": "Idempotent request handling ensures duplicate requests with the same identifier yield the same result without side effects."},
+  {"text": "Policy services can deny or allow access based on request content, user roles, and business rules."},
+  {"text": "Docker containers provide isolated environments for running microservices with consistent dependencies across platforms."},
+  {"text": "API gateways act as a single entry point for client requests, handling cross-cutting concerns like security and monitoring."},
+  {"text": "Rate limiting prevents abuse by restricting the number of requests a client can make within a time window."},
+  {"text": "Authentication mechanisms like API keys, JWT tokens, and OAuth2 verify the identity of clients making requests."},
+  {"text": "Distributed tracing with trace IDs and request IDs helps debug issues across multiple microservices."},
+  {"text": "RESTful APIs use HTTP methods (GET, POST, PUT, DELETE) to perform CRUD operations on resources."},
+  {"text": "Service orchestration coordinates multiple microservices to fulfill complex business workflows and transactions."},
+  {"text": "Load balancing distributes incoming requests across multiple service instances to ensure high availability."},
+  {"text": "Circuit breakers prevent cascading failures by stopping requests to failing services temporarily."},
+  {"text": "Message queues like RabbitMQ and Kafka enable asynchronous communication between decoupled services."},
+  {"text": "Database per service pattern ensures each microservice has its own database for data independence."},
+  {"text": "API versioning strategies include URL path versioning, header versioning, and content negotiation."},
+  {"text": "Health check endpoints allow monitoring systems to verify if a service is running correctly."},
+  {"text": "Logging and monitoring are essential for observability in distributed microservices architectures."},
+  {"text": "JSON and XML are common data formats for request and response payloads in web APIs."}
 ]
