@@ -85,10 +85,10 @@ def score(doc_text: str, query: str, idf: dict) -> float:
 async def retrieve(req: RetrieveRequest):
     if not DATA:
         raise HTTPException(status_code=500, detail="Dataset empty")
-    
+
     # Compute IDF across all documents once
     idf = compute_idf(DATA)
-    
+
     ranked = sorted(
         (
             {
@@ -103,11 +103,33 @@ async def retrieve(req: RetrieveRequest):
     )
     # Return top 3 with score > 0
     top3 = [r for r in ranked[:3] if r["score"] > 0]
-    
+
     # If no matches, return top 3 anyway with their scores
     if not top3:
         top3 = ranked[:3]
-    
+
+    # JSONL logging for traceable request flows (include full document info)
+    log_entry = {
+        "service": "retriever",
+        "request_id": req.request_id,
+        "query": req.query,
+        "result_count": len(top3),
+        "documents": [
+            {
+                "id": d["id"],
+                "score": d["score"],
+                "text": d["text"]
+            } for d in top3
+        ]
+    }
+    try:
+        log_path = Path(__file__).parent.parent / "logs" / "audit.jsonl"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as logf:
+            logf.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        pass  # Don't fail request if logging fails
+
     return {"service": "retriever", "request_id": req.request_id, "query": req.query, "documents": top3}
 
 @app.get("/health")
